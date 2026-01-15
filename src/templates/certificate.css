@@ -1,0 +1,38 @@
+@page { size: A4; margin: 0; }
+body { margin: 0; font-family: "Times New Roman", serif; background: #ddd; }
+
+.certificate {
+  position: relative;
+  width: 297mm;
+  height: 210mm;
+  margin: auto;
+  background: #fff;
+  border: 14px solid #2c3e50;
+  overflow: hidden;
+}
+
+.bg {
+  position: absolute;
+  inset: 0;
+  background-image: url("{{bgImagePath}}");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 65%;
+  opacity: 0.18;
+  z-index: 1;
+}
+
+.content {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 0 30mm;
+}
+
+/* Add all your styles for .congrats, h1, .subtitle, .student-name, etc. as before */

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8">
+  <title>Certificate of Completion</title>
+  <style>
+    @page { 
+      size: A4 landscape; 
+      margin: 0; 
+    }
+
+    body { 
+      margin: 0; 
+      padding: 0;
+      font-family: Georgia, serif; 
+    }
+
+    .certificate {
+      position: relative;
+      width: 297mm;
+      height: 210mm;
+      background: white;
+      border: 14px solid #2c3e50;
+    }
+
+    .bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: url("{{bgImagePath}}");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 65%;
+      opacity: 0.15;
+    }
+
+    .content {
+      position: relative;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .congrats {
+      font-size: 28px;
+      color: #e74c3c;
+      font-weight: bold;
+      margin: 0 0 15px 0;
+    }
+
+    .content h1 {
+      font-size: 42px;
+      color: #2c3e50;
+      margin: 10px 0 20px 0;
+      border-bottom: 3px solid #3498db;
+      padding-bottom: 10px;
+    }
+
+    .text {
+      font-size: 18px;
+      color: #555;
+      margin: 10px 0;
+      font-style: italic;
+    }
+
+    .name {
+      font-size: 36px;
+      color: #2980b9;
+      margin: 15px 0;
+      text-decoration: underline;
+    }
+
+    .course {
+      font-size: 28px;
+      color: #27ae60;
+      margin: 15px 0 25px 0;
+      font-style: italic;
+    }
+
+    .info {
+      margin: 25px 0;
+      font-size: 16px;
+      color: #555;
+    }
+
+    .info p {
+      margin: 8px 0;
+    }
+
+    .info strong {
+      color: #2c3e50;
+    }
+
+    .signs {
+      display: flex;
+      gap: 80px;
+      margin-top: 35px;
+    }
+
+    .signs > div {
+      width: 200px;
+    }
+
+    .line {
+      border-top: 2px solid #2c3e50;
+      margin-bottom: 8px;
+    }
+
+    .signs p {
+      font-size: 14px;
+      color: #666;
+      font-style: italic;
+      margin: 0;
+    }
+
+    .qr {
+      position: absolute;
+      bottom: 25px;
+      right: 25px;
+      background: white;
+      padding: 10px;
+      border: 2px solid #2c3e50;
+      border-radius: 8px;
+    }
+
+    .qr img {
+      width: 100px;
+      height: 100px;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="certificate">
+    <div class="bg"></div>
+    <div class="content">
+      <p class="congrats">Congratulations!</p>
+      <h1>CERTIFICATE OF COMPLETION</h1>
+      <p class="text">This is to certify that</p>
+      <h2 class="name">{{studentName}}</h2>
+      <p class="text">has successfully completed the course</p>
+      <h3 class="course">{{courseTitle}}</h3>
+      <div class="info">
+        <p>Completion Date: <strong>{{completionDate}}</strong></p>
+        <p>Certificate ID: <strong>{{certificateId}}</strong></p>
+      </div>
+      <div class="signs">
+        <div>
+          <div class="line"></div>
+          <p>Authorized Signature</p>
+        </div>
+        <div>
+          <div class="line"></div>
+          <p>Date Issued</p>
+        </div>
+      </div>
+    </div>
+    <div class="qr">
+      <img src="{{qrCodeUrl}}" alt="QR">
+    </div>
+  </div>
+</body>
+</html>
