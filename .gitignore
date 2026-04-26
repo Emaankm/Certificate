@@ -45,3 +45,7 @@ coverage/
 # Build
 dist/
 build/
+
+temp/
+node_modules/
+.env
