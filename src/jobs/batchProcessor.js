@@ -2,7 +2,9 @@ const BatchJob = require('../models/BatchJob');
 const Certificate = require('../models/Certificate');
 const pdfGenerator = require('../services/pdfGenerator');
 const qrCodeService = require('../services/qrCodeService');
-const storageService = require('../services/storageService');
+const { uploadPDF } = require('../services/cloudinary.service');
+const fs = require('fs');
+const path = require('path');
 const logger = require('../utils/logger');
 
 class BatchProcessor {
@@ -45,15 +47,22 @@ class BatchProcessor {
           qrCodePath
         });
 
-        // 3️⃣ Store PDF
-        const fileUrl = await storageService.saveCertificate(
-          record.certificateId,
-          pdfBuffer
-        );
+        // 3️⃣ Store PDF (Cloudinary)
+        const tempDir = path.join(process.cwd(), 'storage', 'temp');
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+        const pdfPath = path.join(tempDir, `${record.certificateId}.pdf`);
+        fs.writeFileSync(pdfPath, pdfBuffer);
+
+        const uploadResult = await uploadPDF(pdfPath);
+        const { cloudinaryId, certificateUrl } = uploadResult;
+
+        if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
 
         // 4️⃣ Save certificate to DB
         await Certificate.create({
           certificateId: record.certificateId,
+          cloudinaryId,
+          certificateUrl,
           studentInfo: {
             studentName: record.studentName,
             email: record.email
@@ -62,7 +71,6 @@ class BatchProcessor {
             courseTitle: record.courseTitle
           },
           certificateDetails: {
-            fileUrl,
             accessToken: record.accessToken,
             issueDate: new Date(),
             completionDate: record.completionDate,

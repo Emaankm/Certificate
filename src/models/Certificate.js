@@ -40,14 +40,12 @@ const CertificateSchema = new mongoose.Schema(
       default: Date.now
     },
 
-    pdfPath: {
+    certificateUrl: {
       type: String,
       required: true
     },
-
-    verificationUrl: {
-      type: String,
-      required: true
+    cloudinaryId: {
+      type: String
     },
 
     status: {

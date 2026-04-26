@@ -12,10 +12,6 @@ app.use(express.json());
 // Connect MongoDB
 connectDatabase();
 
-// Serve PDFs from storage folder
-const storagePath = path.join(process.cwd(), process.env.LOCAL_STORAGE_PATH || 'storage/certificates');
-app.use('/verify', express.static(storagePath));
-
 // Certificate API routes
 app.use('/api/certificates', certificateRoutes);
 

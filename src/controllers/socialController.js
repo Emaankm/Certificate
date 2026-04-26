@@ -25,7 +25,7 @@ class SocialController {
       }
 
       const shareUrl = generateShareUrl(platform, {
-        viewUrl: certificate.certificateDetails.viewUrl,
+        certificateUrl: certificate.certificateUrl,
         courseTitle: certificate.courseInfo.courseTitle
       });
 

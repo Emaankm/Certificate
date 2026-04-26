@@ -1,15 +1,13 @@
 const Certificate = require('../models/Certificate');
 const pdfGenerator = require('../services/pdfGenerator');
-const storageService = require('../config/storage');
+const { uploadPDF } = require('../services/cloudinary.service');
 const qrCodeService = require('../services/qrCodeService');
 const tokenGenerator = require('../utils/tokenGenerator');
 const logger = require('../utils/logger');
-const { certificateQueue } = require('../../queue');
 
 class CertificateController {
   /**
    * Generate a single certificate
-   * POST /api/certificates/generate
    */
   async generateCertificate(req, res) {
     try {
@@ -25,7 +23,6 @@ class CertificateController {
         metadata = {}
       } = req.body;
 
-      // Validate required fields
       if (!studentId || !studentName || !studentEmail || !courseId || !courseTitle) {
         return res.status(400).json({
           success: false,
@@ -36,7 +33,6 @@ class CertificateController {
         });
       }
 
-      // Check if certificate already exists
       const existingCertificate = await Certificate.findOne({
         'studentInfo.studentId': studentId,
         'courseInfo.courseId': courseId
@@ -45,22 +41,16 @@ class CertificateController {
       if (existingCertificate) {
         return res.status(200).json({
           success: true,
-          message: 'Certificate already exists',
           data: {
-            certificateId: existingCertificate.certificateId,
-            certificateUrl: existingCertificate.certificateDetails.viewUrl,
-            downloadUrl: existingCertificate.certificateDetails.downloadUrl,
-            issueDate: existingCertificate.certificateDetails.issueDate,
-            status: existingCertificate.certificateDetails.status
+            certificateUrl: existingCertificate.certificateUrl,
+            cloudinaryId: existingCertificate.cloudinaryId
           }
         });
       }
 
-      // Generate unique identifiers
       const certificateId = tokenGenerator.generateCertificateId();
       const accessToken = tokenGenerator.generateAccessToken();
 
-      // Prepare certificate data
       const certificateData = {
         certificateId,
         studentId,
@@ -74,24 +64,26 @@ class CertificateController {
         metadata
       };
 
-      // Generate PDF with QR code
+      // Generate PDF
       const pdfResult = await pdfGenerator.generateCertificate(certificateData, language);
 
-      // Upload to storage
-      const uploadResult = await storageService.uploadFile(
-        pdfResult.filename,
-        pdfResult.filepath,
-        'application/pdf'
-      );
+      // Upload to Cloudinary
+      const uploadResult = await uploadPDF(pdfResult.filepath);
 
-      // Create certificate record
+      const { cloudinaryId, certificateUrl } = uploadResult;
+
+      // Save in DB
       const certificate = new Certificate({
         certificateId,
+        certificateUrl,
+        cloudinaryId,
+
         studentInfo: {
           studentId,
           studentName,
           studentEmail
         },
+
         courseInfo: {
           courseId,
           courseTitle,
@@ -99,22 +91,22 @@ class CertificateController {
           totalChapters: metadata.totalChapters,
           duration: metadata.duration
         },
+
         certificateDetails: {
           issueDate: new Date(),
           completionDate: completionDate || new Date(),
           status: 'active',
           language,
-          fileUrl: uploadResult.url,
+          accessToken,
           viewUrl: `${process.env.BASE_URL}/view/${accessToken}`,
           downloadUrl: `${process.env.BASE_URL}/download/${accessToken}`,
-          accessToken,
           qrCodeUrl: pdfResult.qrCodeUrl,
           qrCodeData: pdfResult.qrCodeData
         },
+
         metadata: {
-          generatedBy: 'certificate-service-v1',
+          generatedBy: 'certificate-service-cloudinary',
           fileSize: pdfResult.fileSize,
-          fileFormat: 'pdf',
           templateVersion: '1.0',
           generationTimeMs: pdfResult.generationTimeMs
         }
@@ -122,24 +114,19 @@ class CertificateController {
 
       await certificate.save();
 
-      logger.info(`Certificate generated: ${certificateId} for student: ${studentId}`);
+      logger.info(`Certificate generated: ${certificateId}`);
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
-        message: 'Certificate generated successfully',
         data: {
-          certificateId: certificate.certificateId,
-          certificateUrl: certificate.certificateDetails.viewUrl,
-          downloadUrl: certificate.certificateDetails.downloadUrl,
-          issueDate: certificate.certificateDetails.issueDate,
-          status: certificate.certificateDetails.status,
-          qrCodeUrl: certificate.certificateDetails.qrCodeUrl
+          certificateUrl: certificate.certificateUrl,
+          cloudinaryId: certificate.cloudinaryId
         }
       });
 
     } catch (error) {
       logger.error('Certificate generation error:', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: {
           code: 'GENERATION_FAILED',
@@ -151,7 +138,6 @@ class CertificateController {
 
   /**
    * Get certificate by ID
-   * GET /api/certificates/:certificateId
    */
   async getCertificate(req, res) {
     try {
@@ -169,33 +155,17 @@ class CertificateController {
         });
       }
 
-      res.json({
+      return res.json({
         success: true,
         data: {
-          certificateId: certificate.certificateId,
-          studentInfo: certificate.studentInfo,
-          courseInfo: certificate.courseInfo,
-          certificateDetails: {
-            issueDate: certificate.certificateDetails.issueDate,
-            completionDate: certificate.certificateDetails.completionDate,
-            status: certificate.certificateDetails.status,
-            language: certificate.certificateDetails.language,
-            viewUrl: certificate.certificateDetails.viewUrl,
-            downloadUrl: certificate.certificateDetails.downloadUrl
-          },
-          verification: {
-            verificationCount: certificate.verification.verificationCount,
-            lastVerified: certificate.verification.lastVerified
-          },
-          socialSharing: {
-            shareCount: certificate.socialSharing.shareCount
-          }
+          certificateUrl: certificate.certificateUrl,
+          cloudinaryId: certificate.cloudinaryId
         }
       });
 
     } catch (error) {
       logger.error('Get certificate error:', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: {
           code: 'INTERNAL_ERROR',
@@ -206,8 +176,7 @@ class CertificateController {
   }
 
   /**
-   * Get all certificates for a student
-   * GET /api/certificates/student/:studentId
+   * Get student certificates
    */
   async getStudentCertificates(req, res) {
     try {
@@ -215,24 +184,19 @@ class CertificateController {
 
       const certificates = await Certificate.findByStudent(studentId);
 
-      res.json({
+      return res.json({
         success: true,
-        count: certificates.length,
-        data: certificates.map(cert => ({
-          certificateId: cert.certificateId,
-          courseTitle: cert.courseInfo.courseTitle,
-          issueDate: cert.certificateDetails.issueDate,
-          completionDate: cert.certificateDetails.completionDate,
-          status: cert.certificateDetails.status,
-          viewUrl: cert.certificateDetails.viewUrl,
-          downloadUrl: cert.certificateDetails.downloadUrl,
-          language: cert.certificateDetails.language
-        }))
+        data: {
+          certificates: certificates.map(cert => ({
+            certificateUrl: cert.certificateUrl,
+            cloudinaryId: cert.cloudinaryId
+          }))
+        }
       });
 
     } catch (error) {
       logger.error('Get student certificates error:', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: {
           code: 'INTERNAL_ERROR',
@@ -243,8 +207,7 @@ class CertificateController {
   }
 
   /**
-   * Revoke a certificate
-   * PATCH /api/certificates/:certificateId/revoke
+   * Revoke certificate
    */
   async revokeCertificate(req, res) {
     try {
@@ -266,18 +229,17 @@ class CertificateController {
 
       logger.info(`Certificate revoked: ${certificateId}`);
 
-      res.json({
+      return res.json({
         success: true,
-        message: 'Certificate revoked successfully',
         data: {
-          certificateId: certificate.certificateId,
-          status: certificate.certificateDetails.status
+          certificateUrl: certificate.certificateUrl,
+          cloudinaryId: certificate.cloudinaryId
         }
       });
 
     } catch (error) {
       logger.error('Revoke certificate error:', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: {
           code: 'REVOKE_FAILED',
@@ -288,8 +250,7 @@ class CertificateController {
   }
 
   /**
-   * Delete a certificate
-   * DELETE /api/certificates/:certificateId
+   * Delete certificate
    */
   async deleteCertificate(req, res) {
     try {
@@ -307,27 +268,21 @@ class CertificateController {
         });
       }
 
-      // Delete file from storage
-      try {
-        const filename = certificate.certificateDetails.fileUrl.split('/').pop();
-        await storageService.deleteFile(filename);
-      } catch (error) {
-        logger.warn('Failed to delete certificate file:', error);
-      }
-
-      // Delete from database
       await Certificate.deleteOne({ certificateId });
 
       logger.info(`Certificate deleted: ${certificateId}`);
 
-      res.json({
+      return res.json({
         success: true,
-        message: 'Certificate deleted successfully'
+        data: {
+          certificateUrl: certificate.certificateUrl,
+          cloudinaryId: certificate.cloudinaryId
+        }
       });
 
     } catch (error) {
       logger.error('Delete certificate error:', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: {
           code: 'DELETE_FAILED',
@@ -338,45 +293,42 @@ class CertificateController {
   }
 
   /**
-   * Get certificate statistics
-   * GET /api/certificates/stats
+   * Stats
    */
   async getCertificateStats(req, res) {
     try {
       const totalCertificates = await Certificate.countDocuments();
-      const activeCertificates = await Certificate.countDocuments({ 
-        'certificateDetails.status': 'active' 
+      const activeCertificates = await Certificate.countDocuments({
+        'certificateDetails.status': 'active'
       });
-      const revokedCertificates = await Certificate.countDocuments({ 
-        'certificateDetails.status': 'revoked' 
+      const revokedCertificates = await Certificate.countDocuments({
+        'certificateDetails.status': 'revoked'
       });
 
-      // Get top shared certificates
       const topShared = await Certificate.find()
         .sort({ 'socialSharing.shareCount': -1 })
         .limit(10)
         .select('certificateId courseInfo.courseTitle socialSharing.shareCount');
 
-      // Get recent certificates
       const recent = await Certificate.find()
         .sort({ 'timestamps.createdAt': -1 })
         .limit(10)
         .select('certificateId studentInfo.studentName courseInfo.courseTitle certificateDetails.issueDate');
 
-      res.json({
+      return res.json({
         success: true,
         data: {
-          total: totalCertificates,
-          active: activeCertificates,
-          revoked: revokedCertificates,
-          topShared: topShared,
-          recent: recent
+          totalCertificates,
+          activeCertificates,
+          revokedCertificates,
+          topShared,
+          recent
         }
       });
 
     } catch (error) {
-      logger.error('Get certificate stats error:', error);
-      res.status(500).json({
+      logger.error('Stats error:', error);
+      return res.status(500).json({
         success: false,
         error: {
           code: 'STATS_FAILED',

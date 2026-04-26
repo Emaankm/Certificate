@@ -21,16 +21,17 @@ const certificateSchema = new mongoose.Schema({
     type: String,
     default: 'en'
   },
-  pdfPath: {
+  certificateUrl: {
     type: String,
     required: true
   },
-  verificationUrl: {
-    type: String,
-    required: true
+  cloudinaryId: {
+    type: String
   }
 }, {
   timestamps: true
 });
 
-module.exports = mongoose.model('Certificate', certificateSchema);
+// Use the same Mongo collection ('certificates') while avoiding model name clashes
+// with `src/models/Certificate.js` (which also registers 'Certificate').
+module.exports = mongoose.model('CertificateSimple', certificateSchema, 'certificates');

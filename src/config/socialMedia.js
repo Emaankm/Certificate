@@ -48,7 +48,7 @@ const generateShareUrl = (platform, certificateData) => {
 
   Object.entries(config.params).forEach(([key, template]) => {
     let value = template
-      .replace('{certificateUrl}', certificateData.viewUrl)
+      .replace('{certificateUrl}', certificateData.certificateUrl)
       .replace('{courseTitle}', certificateData.courseTitle)
       .replace(
         '{platformName}',

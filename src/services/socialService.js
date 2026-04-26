@@ -6,7 +6,7 @@ class SocialService {
     const certificate = await Certificate.findByCertificateId(certificateId);
     if (!certificate) throw new Error('Certificate not found');
     return generateShareUrl(platform, { 
-      certificateUrl: certificate.certificateDetails.viewUrl,
+      certificateUrl: certificate.certificateUrl,
       courseTitle: certificate.courseInfo.courseTitle
     });
   }

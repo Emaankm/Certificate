@@ -11,15 +11,9 @@ router.post('/', async (req, res) => {
     const certificate = await generateCertificate(req.body);
     res.status(201).json({
       success: true,
-      message: 'Certificate generated successfully',
       data: {
-        _id: certificate._id,
-        userId: certificate.userId,
-        userName: certificate.userName,
-        courseTitle: certificate.courseTitle,
-        verificationUrl: certificate.verificationUrl,
-        pdfPath: certificate.pdfPath,
-        createdAt: certificate.createdAt
+        certificateUrl: certificate.certificateUrl,
+        cloudinaryId: certificate.cloudinaryId
       }
     });
   } catch (error) {
@@ -36,11 +30,29 @@ router.get('/:certificateId', async (req, res) => {
   try {
     const certificate = await getCertificateById(req.params.certificateId);
     if (!certificate) {
-      return res.status(404).json({ message: 'Certificate not found' });
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Certificate not found'
+        }
+      });
     }
-    res.json(certificate);
+    res.json({
+      success: true,
+      data: {
+        certificateUrl: certificate.certificateUrl,
+        cloudinaryId: certificate.cloudinaryId
+      }
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: error.message
+      }
+    });
   }
 });
 
