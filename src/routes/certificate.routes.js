@@ -1,57 +1,76 @@
 const express = require('express');
 const router = express.Router();
-const certificateService = require('../services/certificate.service');
-console.log('Certificate Service:', certificateService);
-console.log('generateCertificate:', certificateService.generateCertificate);
 
+const certificateService = require('../services/certificate.service');
 const { generateCertificate, getCertificateById } = certificateService;
-// Create certificate
-router.post('/', async (req, res) => {
+
+/* ---------------- CREATE CERTIFICATE (EXTERNAL API) ---------------- */
+router.post('/generate', async (req, res) => {
   try {
-    const certificate = await generateCertificate(req.body);
-    res.status(201).json({
+    const { userId, userName, courseId, courseTitle, language } = req.body;
+
+    // Validation
+    if (!userId || !userName || !courseId || !courseTitle) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields"
+      });
+    }
+
+    // Generate certificate
+    const certificate = await generateCertificate({
+      userId,
+      userName,
+      courseId,
+      courseTitle,
+      language
+    });
+
+    return res.status(201).json({
       success: true,
       data: {
         certificateUrl: certificate.certificateUrl,
         cloudinaryId: certificate.cloudinaryId
       }
     });
+
   } catch (error) {
     console.error('Certificate generation error:', error);
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
       message: error.message
     });
   }
 });
 
-// Get certificate by ID
+
+/* ---------------- GET CERTIFICATE BY ID ---------------- */
 router.get('/:certificateId', async (req, res) => {
   try {
     const certificate = await getCertificateById(req.params.certificateId);
+
     if (!certificate) {
       return res.status(404).json({
         success: false,
-        error: {
-          code: 'NOT_FOUND',
-          message: 'Certificate not found'
-        }
+        message: 'Certificate not found'
       });
     }
-    res.json({
+
+    return res.json({
       success: true,
       data: {
         certificateUrl: certificate.certificateUrl,
         cloudinaryId: certificate.cloudinaryId
       }
     });
+
   } catch (error) {
-    res.status(500).json({
+    console.error('Get certificate error:', error);
+
+    return res.status(500).json({
       success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: error.message
-      }
+      message: error.message
     });
   }
 });
