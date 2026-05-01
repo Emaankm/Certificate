@@ -12,6 +12,9 @@ app.use(express.json());
 // Connect MongoDB
 connectDatabase();
 
+// 🚀 START BATCH WORKER (VERY IMPORTANT)
+require('./src/jobs/batchProcessor');
+
 // Certificate API routes
 app.use('/api/certificates', certificateRoutes);
 

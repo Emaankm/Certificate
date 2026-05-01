@@ -1,5 +1,5 @@
 const BatchJob = require('../models/BatchJob');
-const { batchQueue } = require('../../queue');
+const { batchQueue } = require('../queues/queue');
 const tokenGenerator = require('../utils/tokenGenerator');
 const logger = require('../utils/logger');
 

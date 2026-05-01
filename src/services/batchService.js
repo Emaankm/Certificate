@@ -28,8 +28,10 @@ class BatchService {
     // Update batch progress after processing
     batchJob.progress.completed = batchJob.students.filter(s => s.status === 'completed').length;
     batchJob.progress.failed = batchJob.students.filter(s => s.status === 'failed').length;
-    batchJob.progress.percentage = (batchJob.progress.completed / batchJob.students.length) * 100;
-    batchJob.progress.status = 'done';
+    batchJob.progress.percentage = batchJob.students.length
+      ? (batchJob.progress.completed / batchJob.students.length) * 100
+      : 100;
+    batchJob.progress.status = 'completed';
 
     await batchJob.save();
   }
