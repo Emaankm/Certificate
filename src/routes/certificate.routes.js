@@ -1,78 +1,31 @@
 const express = require('express');
 const router = express.Router();
 
-const certificateService = require('../services/certificate.service');
-const { generateCertificate, getCertificateById } = certificateService;
+const certificateController = require('../controllers/certificateController');
 
 /* ---------------- CREATE CERTIFICATE (EXTERNAL API) ---------------- */
 router.post('/generate', async (req, res) => {
-  try {
-    const { userId, userName, courseId, courseTitle, language } = req.body;
+  // Normalize legacy field names to the controller’s expected payload
+  const body = req.body || {};
+  req.body = {
+    studentId: body.studentId ?? body.userId,
+    studentName: body.studentName ?? body.userName,
+    studentEmail: body.studentEmail ?? body.userEmail ?? body.email,
+    courseId: body.courseId,
+    courseTitle: body.courseTitle,
+    courseDescription: body.courseDescription,
+    completionDate: body.completionDate,
+    language: body.language,
+    metadata: body.metadata
+  };
 
-    // Validation
-    if (!userId || !userName || !courseId || !courseTitle) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields"
-      });
-    }
-
-    // Generate certificate
-    const certificate = await generateCertificate({
-      userId,
-      userName,
-      courseId,
-      courseTitle,
-      language
-    });
-
-    return res.status(201).json({
-      success: true,
-      data: {
-        certificateUrl: certificate.certificateUrl,
-        cloudinaryId: certificate.cloudinaryId
-      }
-    });
-
-  } catch (error) {
-    console.error('Certificate generation error:', error);
-
-    return res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
+  return certificateController.generateCertificate(req, res);
 });
 
 
 /* ---------------- GET CERTIFICATE BY ID ---------------- */
 router.get('/:certificateId', async (req, res) => {
-  try {
-    const certificate = await getCertificateById(req.params.certificateId);
-
-    if (!certificate) {
-      return res.status(404).json({
-        success: false,
-        message: 'Certificate not found'
-      });
-    }
-
-    return res.json({
-      success: true,
-      data: {
-        certificateUrl: certificate.certificateUrl,
-        cloudinaryId: certificate.cloudinaryId
-      }
-    });
-
-  } catch (error) {
-    console.error('Get certificate error:', error);
-
-    return res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
+  return certificateController.getCertificate(req, res);
 });
 
 module.exports = router;
