@@ -5,41 +5,98 @@ const certificateRoutes = require('./src/routes/certificate.routes');
 
 const app = express();
 
-// Middleware
+app.disable('x-powered-by');
+
+/* =========================
+   🛡️ BASIC SAFETY MIDDLEWARE
+========================= */
 app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
-// Connect MongoDB
-connectDatabase();
-
-// 🚀 START BATCH WORKER (SAFE GUARD)
-if (process.env.ENABLE_BATCH_WORKER === 'true') {
-  require('./src/jobs/batchProcessor');
+/* =========================
+   🧠 OPTIONAL DEBUG (safe for dev)
+   Turn OFF in production if needed
+========================= */
+if (process.env.LOG_REQUEST_BODY === 'true') {
+  app.use((req, res, next) => {
+    console.log('📥 REQUEST:', {
+      method: req.method,
+      url: req.url,
+      body: req.body
+    });
+    next();
+  });
 }
 
-// Routes
+/* =========================
+   ❤️ HEALTH CHECK (NO DB)
+========================= */
+app.get('/health', (req, res) => {
+  return res.status(200).json({
+    status: 'OK',
+    timestamp: new Date().toISOString()
+  });
+});
+
+/* =========================
+   🗄️ DATABASE CONNECTION
+========================= */
+connectDatabase().catch((err) => {
+  console.error('❌ DB Connection Failed:', err);
+});
+
+/* =========================
+   🚀 ROUTES
+========================= */
 app.use('/api/certificates', certificateRoutes);
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK' });
-});
-
-// Root route
+/* =========================
+   🏠 ROOT ROUTE
+========================= */
 app.get('/', (req, res) => {
-  res.send('✅ Certificate microservice is running 🚀');
+  return res.status(200).json({
+    success: true,
+    message: 'Certificate microservice is running'
+  });
 });
 
-// Global error handler (IMPORTANT for production)
-app.use((err, req, res, next) => {
-  console.error('❌ Server Error:', err);
-
-  res.status(500).json({
+/* =========================
+   ❌ 404 HANDLER (NO HTML EVER)
+========================= */
+app.use((req, res) => {
+  return res.status(404).json({
     success: false,
     error: {
-      code: 'INTERNAL_SERVER_ERROR',
-      message: err.message
+      code: 'NOT_FOUND',
+      message: 'Route not found'
     }
   });
+});
+
+/* =========================
+   🚨 GLOBAL ERROR HANDLER
+========================= */
+app.use((err, req, res, next) => {
+  console.error('❌ SERVER ERROR:', err);
+
+  return res.status(500).json({
+    success: false,
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: 'Something went wrong'
+    }
+  });
+});
+
+/* =========================
+   💀 SAFETY NET (CRASH PREVENTION)
+========================= */
+process.on('uncaughtException', (err) => {
+  console.error('💥 UNCAUGHT EXCEPTION:', err);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('💥 UNHANDLED REJECTION:', err);
 });
 
 module.exports = app;

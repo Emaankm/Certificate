@@ -43,12 +43,12 @@ class BatchController {
       }
 
       for (const student of students) {
-        if (!student.studentId || !student.studentName || !student.studentEmail) {
+        if (!student.studentId || !student.studentName) {
           return res.status(400).json({
             success: false,
             error: {
               code: 'INVALID_STUDENT_DATA',
-              message: 'Each student must have studentId, studentName, and studentEmail'
+              message: 'Each student must have studentId and studentName'
             }
           });
         }

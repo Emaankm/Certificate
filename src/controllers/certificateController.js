@@ -12,6 +12,11 @@ class CertificateController {
    */
   async generateCertificate(req, res) {
     try {
+      if (process.env.LOG_REQUEST_BODY === 'true') {
+        // requested: safe logging for debugging Postman issues
+        console.log('REQUEST BODY:', req.body);
+      }
+
       const {
         studentId,
         studentName,
@@ -29,7 +34,7 @@ class CertificateController {
           success: false,
           error: {
             code: 'MISSING_FIELDS',
-            message: 'Missing required fields'
+            message: 'studentId, studentName, courseId, courseTitle are required'
           }
         });
       }

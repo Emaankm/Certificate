@@ -2,15 +2,15 @@ const express = require('express');
 const router = express.Router();
 
 const certificateController = require('../controllers/certificateController');
+const asyncHandler = require('../utils/asyncHandler');
 
 /* ---------------- CREATE CERTIFICATE (EXTERNAL API) ---------------- */
-router.post('/generate', async (req, res) => {
+router.post('/generate', asyncHandler(async (req, res) => {
   // Normalize legacy field names to the controller’s expected payload
   const body = req.body || {};
   req.body = {
     studentId: body.studentId ?? body.userId,
     studentName: body.studentName ?? body.userName,
-    studentEmail: body.studentEmail ?? body.userEmail ?? body.email,
     courseId: body.courseId,
     courseTitle: body.courseTitle,
     courseDescription: body.courseDescription,
@@ -20,12 +20,10 @@ router.post('/generate', async (req, res) => {
   };
 
   return certificateController.generateCertificate(req, res);
-});
+}));
 
 
 /* ---------------- GET CERTIFICATE BY ID ---------------- */
-router.get('/:certificateId', async (req, res) => {
-  return certificateController.getCertificate(req, res);
-});
+router.get('/:certificateId', asyncHandler(certificateController.getCertificate.bind(certificateController)));
 
 module.exports = router;

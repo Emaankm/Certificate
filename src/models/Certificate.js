@@ -1,62 +1,72 @@
 const mongoose = require('mongoose');
-const { v4: uuidv4 } = require('uuid');
 
 const CertificateSchema = new mongoose.Schema(
   {
-    certificateId: {
-      type: String,
-      default: uuidv4,
-      unique: true,
-      index: true
+    certificateId: { type: String, unique: true, index: true, required: true },
+    certificateUrl: { type: String, required: true },
+    cloudinaryId: { type: String },
+
+    studentInfo: {
+      studentId: { type: String, required: true, index: true },
+      studentName: { type: String, required: true },
+      // optional by design (Render stability requirement)
+      studentEmail: { type: String }
     },
 
-    userId: {
-      type: String,
-      required: true
+    courseInfo: {
+      courseId: { type: String, required: true, index: true },
+      courseTitle: { type: String, required: true },
+      courseDescription: { type: String },
+      totalChapters: { type: Number },
+      duration: { type: String }
     },
 
-    userName: {
-      type: String,
-      required: true
+    certificateDetails: {
+      issueDate: { type: Date, default: Date.now },
+      completionDate: { type: Date },
+      status: { type: String, enum: ['active', 'revoked'], default: 'active' },
+      language: { type: String, default: 'en' },
+      accessToken: { type: String, index: true },
+      viewUrl: { type: String },
+      downloadUrl: { type: String },
+      qrCodeUrl: { type: String },
+      qrCodeData: { type: String }
     },
 
-    courseId: {
-      type: String,
-      required: true
+    socialSharing: {
+      shareCount: { type: Number, default: 0 }
     },
 
-    courseTitle: {
-      type: String,
-      required: true
+    metadata: {
+      generatedBy: { type: String },
+      fileSize: { type: Number },
+      templateVersion: { type: String },
+      generationTimeMs: { type: Number }
     },
 
-    language: {
-      type: String,
-      default: 'en'
-    },
-
-    issuedAt: {
-      type: Date,
-      default: Date.now
-    },
-
-    certificateUrl: {
-      type: String,
-      required: true
-    },
-    cloudinaryId: {
-      type: String
-    },
-
-    status: {
-      type: String,
-      enum: ['generated', 'revoked'],
-      default: 'generated'
-    }
+    // Backwards-compat fields (older schema/service)
+    userId: { type: String },
+    userName: { type: String },
+    courseId: { type: String },
+    courseTitle: { type: String },
+    language: { type: String },
+    issuedAt: { type: Date }
   },
-  {
-    timestamps: true
-  }
+  { timestamps: true }
 );
+
+CertificateSchema.statics.findByCertificateId = function (certificateId) {
+  return this.findOne({ certificateId });
+};
+
+CertificateSchema.statics.findByStudent = function (studentId) {
+  return this.find({ 'studentInfo.studentId': studentId }).sort({ createdAt: -1 });
+};
+
+CertificateSchema.methods.revoke = async function () {
+  this.certificateDetails = this.certificateDetails || {};
+  this.certificateDetails.status = 'revoked';
+  return this.save();
+};
 
 module.exports = mongoose.model('Certificate', CertificateSchema);
