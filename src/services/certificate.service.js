@@ -16,6 +16,12 @@ const certificateTemplate = (bgUrl, stampUrl, eduUrl, data) => `
 <!DOCTYPE html>
 <html>
 <head>
+
+<!-- 🔥 PRELOAD FIX (VERY IMPORTANT FOR RENDER) -->
+<link rel="preload" as="image" href="${bgUrl}">
+<link rel="preload" as="image" href="${stampUrl}">
+<link rel="preload" as="image" href="${eduUrl}">
+
 <style>
 @page { size: A4 landscape; margin: 0; }
 
@@ -51,7 +57,7 @@ body {
   background-image: url("${bgUrl}");
   background-repeat: no-repeat;
   background-position: center;
-  background-size: 60%;
+  background-size: contain;
   opacity: 0.07;
 }
 
@@ -67,9 +73,25 @@ body {
   padding: 0 40mm;
 }
 
-.brand { font-size: 14px; letter-spacing: 6px; color: #6b7280; text-transform: uppercase; }
-.title { font-size: 44px; font-weight: 700; color: #111827; margin-top: 10px; }
-.subtitle { font-size: 15px; color: #6b7280; margin-top: 12px; }
+.brand {
+  font-size: 14px;
+  letter-spacing: 6px;
+  color: #6b7280;
+  text-transform: uppercase;
+}
+
+.title {
+  font-size: 44px;
+  font-weight: 700;
+  color: #111827;
+  margin-top: 10px;
+}
+
+.subtitle {
+  font-size: 15px;
+  color: #6b7280;
+  margin-top: 12px;
+}
 
 .name {
   font-size: 38px;
@@ -190,7 +212,7 @@ async function generateCertificate(data) {
   const filePath = path.join(tempDir, `${id}.pdf`);
   const htmlPath = path.join(tempDir, `${id}.html`);
 
-  /* ---------------- CLOUDINARY ASSETS ---------------- */
+  /* 🔥 USE CLOUDINARY ENV URLS */
   const bgUrl = process.env.BG_URL;
   const stampUrl = process.env.STAMP_URL;
   const eduUrl = process.env.EDU_URL;
@@ -207,13 +229,29 @@ async function generateCertificate(data) {
   /* ---------------- PUPPETEER ---------------- */
   const browser = await puppeteer.launch({
     headless: "new",
-    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox"
+    ]
   });
 
   const page = await browser.newPage();
 
   await page.goto(`file:///${htmlPath.replace(/\\/g, '/')}`, {
-    waitUntil: "networkidle0"
+    waitUntil: "load"
+  });
+
+  // Wait for all images to load (IMPORTANT FIX)
+  await page.evaluate(async () => {
+    const images = Array.from(document.images);
+    await Promise.all(
+      images.map(img => {
+        if (img.complete) return;
+        return new Promise(resolve => {
+          img.onload = img.onerror = resolve;
+        });
+      })
+    );
   });
 
   await page.pdf({
