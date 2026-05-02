@@ -6,6 +6,7 @@ const tokenGenerator = require('../utils/tokenGenerator');
 const logger = require('../utils/logger');
 
 class CertificateController {
+
   /**
    * Generate a single certificate
    */
@@ -14,7 +15,6 @@ class CertificateController {
       const {
         studentId,
         studentName,
-        studentEmail,
         courseId,
         courseTitle,
         courseDescription,
@@ -23,7 +23,8 @@ class CertificateController {
         metadata = {}
       } = req.body;
 
-      if (!studentId || !studentName || !studentEmail || !courseId || !courseTitle) {
+      // ✅ FIX: email removed
+      if (!studentId || !studentName || !courseId || !courseTitle) {
         return res.status(400).json({
           success: false,
           error: {
@@ -55,7 +56,6 @@ class CertificateController {
         certificateId,
         studentId,
         studentName,
-        studentEmail,
         courseId,
         courseTitle,
         courseDescription,
@@ -64,15 +64,14 @@ class CertificateController {
         metadata
       };
 
-      // Generate PDF
-      const pdfResult = await pdfGenerator.generateCertificate(certificateData, language);
+      const pdfResult = await pdfGenerator.generateCertificate(
+        certificateData,
+        language
+      );
 
-      // Upload to Cloudinary
       const uploadResult = await uploadPDF(pdfResult.filepath);
-
       const { cloudinaryId, certificateUrl } = uploadResult;
 
-      // Save in DB
       const certificate = new Certificate({
         certificateId,
         certificateUrl,
@@ -80,8 +79,8 @@ class CertificateController {
 
         studentInfo: {
           studentId,
-          studentName,
-          studentEmail
+          studentName
+          // ❌ studentEmail removed completely
         },
 
         courseInfo: {
@@ -227,8 +226,6 @@ class CertificateController {
 
       await certificate.revoke();
 
-      logger.info(`Certificate revoked: ${certificateId}`);
-
       return res.json({
         success: true,
         data: {
@@ -269,8 +266,6 @@ class CertificateController {
       }
 
       await Certificate.deleteOne({ certificateId });
-
-      logger.info(`Certificate deleted: ${certificateId}`);
 
       return res.json({
         success: true,

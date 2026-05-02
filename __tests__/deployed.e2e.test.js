@@ -43,6 +43,7 @@ describe('Deployed service (Render) smoke tests', () => {
       axios.get(`${BASE_URL}/health`, { validateStatus: () => true })
     );
 
+    // ✔ only real runtime states
     expect([200, 503]).toContain(res.status);
 
     if (res.status === 200) {
@@ -64,11 +65,13 @@ describe('Deployed service (Render) smoke tests', () => {
       )
     );
 
+    // ✔ 400 = correct validation
+    // ✔ 503 = cold start (ignore safely)
     expect([400, 503]).toContain(res.status);
 
     if (res.status === 400) {
-      expect(res.data).toHaveProperty('success', false);
-      expect(res.data).toHaveProperty('error.code', 'MISSING_FIELDS');
+      expect(res.data?.success).toBe(false);
+      expect(res.data?.error?.code).toBe('MISSING_FIELDS');
     }
   });
 
