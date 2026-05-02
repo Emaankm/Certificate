@@ -202,12 +202,16 @@ body {
 /* ---------------- GENERATE CERTIFICATE ---------------- */
 async function generateCertificate(data) {
 
+  console.log("📥 Incoming Certificate Request:", data);
+
   const normalizedData = {
     userId: data.userId || data.studentId,
     userName: data.userName || data.studentName,
     courseId: data.courseId,
     courseTitle: data.courseTitle
   };
+
+  console.log("🧠 Normalized Data:", normalizedData);
 
   const tempDir = path.join(process.cwd(), "temp");
   fs.mkdirSync(tempDir, { recursive: true });
@@ -284,10 +288,19 @@ async function generateCertificate(data) {
     folder: "certificates"
   });
 
+  console.log("☁️ Cloudinary Upload Result:", result);
+
   fs.unlinkSync(filePath);
 
   /* ---------------- DB SAVE ---------------- */
-  return await Certificate.create({
+  console.log("💾 Preparing DB Save Payload:", {
+    userId: normalizedData.userId,
+    userName: normalizedData.userName,
+    courseId: normalizedData.courseId,
+    courseTitle: normalizedData.courseTitle
+  });
+
+  const certificate = await Certificate.create({
     userId: normalizedData.userId,
     userName: normalizedData.userName,
     courseId: normalizedData.courseId,
@@ -296,6 +309,10 @@ async function generateCertificate(data) {
     certificateUrl: result.secure_url,
     cloudinaryId: result.public_id
   });
+
+  console.log("✅ Certificate Generated Successfully:", certificate._id);
+
+  return certificate;
 }
 
 module.exports = { generateCertificate };
