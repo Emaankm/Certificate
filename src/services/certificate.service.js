@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const cloudinary = require('cloudinary').v2;
 const Certificate = require('../models/certificate.model');
+const QRCode = require('qrcode');
 
 /* ---------------- CLOUDINARY CONFIG ---------------- */
 cloudinary.config({
@@ -12,7 +13,7 @@ cloudinary.config({
 });
 
 /* ---------------- TEMPLATE ---------------- */
-const certificateTemplate = (bgUrl, stampUrl, eduUrl, data) => `
+const certificateTemplate = (bgUrl, stampUrl, eduUrl, qrDataUrl, data) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -25,7 +26,6 @@ body {
   -webkit-print-color-adjust: exact;
 }
 
-/* PAGE */
 .page {
   width: 297mm;
   height: 210mm;
@@ -34,21 +34,18 @@ body {
   overflow: hidden;
 }
 
-/* GOLD BORDER */
 .border {
   position: absolute;
   inset: 12mm;
   border: 2px solid #d4af37;
 }
 
-/* INNER FRAME */
 .inner {
   position: absolute;
   inset: 18mm;
   border: 1px solid #e5e7eb;
 }
 
-/* BACKGROUND */
 .bg {
   position: absolute;
   inset: 0;
@@ -59,7 +56,6 @@ body {
   opacity: 0.07;
 }
 
-/* CONTENT */
 .content {
   position: relative;
   z-index: 2;
@@ -72,30 +68,10 @@ body {
   padding: 0 40mm;
 }
 
-/* BRAND */
-.brand {
-  font-size: 14px;
-  letter-spacing: 6px;
-  color: #6b7280;
-  text-transform: uppercase;
-}
+.brand { font-size: 14px; letter-spacing: 6px; color: #6b7280; text-transform: uppercase; }
+.title { font-size: 44px; font-weight: 700; color: #111827; margin-top: 10px; }
+.subtitle { font-size: 15px; color: #6b7280; margin-top: 12px; }
 
-/* TITLE */
-.title {
-  font-size: 44px;
-  font-weight: 700;
-  color: #111827;
-  margin-top: 10px;
-}
-
-/* SUBTITLE */
-.subtitle {
-  font-size: 15px;
-  color: #6b7280;
-  margin-top: 12px;
-}
-
-/* NAME */
 .name {
   font-size: 38px;
   font-weight: 700;
@@ -106,7 +82,6 @@ body {
   padding-bottom: 6px;
 }
 
-/* COURSE */
 .course {
   font-size: 24px;
   font-style: italic;
@@ -114,14 +89,12 @@ body {
   margin-top: 8px;
 }
 
-/* DETAILS */
 .details {
   margin-top: 18px;
   font-size: 13px;
   color: #4b5563;
 }
 
-/* STAMP (BOTTOM LEFT) */
 .stamp {
   position: absolute;
   bottom: 25mm;
@@ -129,11 +102,8 @@ body {
   z-index: 3;
 }
 
-.stamp img {
-  width: 130px;
-}
+.stamp img { width: 130px; }
 
-/* SIGNATURE (BOTTOM RIGHT) */
 .signature {
   position: absolute;
   bottom: 28mm;
@@ -141,16 +111,8 @@ body {
   text-align: center;
 }
 
-/* EDU LOGO ABOVE SIGNATURE */
-.edu-logo {
-  margin-bottom: 6px;
-}
-
-.edu-logo img {
-  width: 150px;
-  height: auto;
-}
-
+.edu-logo { margin-bottom: 6px; }
+.edu-logo img { width: 150px; height: auto; }
 
 .line {
   width: 160px;
@@ -161,7 +123,6 @@ body {
 </head>
 
 <body>
-
 <div class="page">
 
   <div class="border"></div>
@@ -171,15 +132,12 @@ body {
   <div class="content">
 
     <div class="brand">EDULEARN ACADEMY</div>
-
     <div class="title">Certificate of Completion</div>
-
     <div class="subtitle">This is to certify that</div>
 
     <div class="name">${data.userName}</div>
 
     <div class="subtitle">has successfully completed the course</div>
-
     <div class="course">${data.courseTitle}</div>
 
     <div class="details">
@@ -189,78 +147,95 @@ body {
 
   </div>
 
-  <!-- STAMP -->
   ${stampUrl ? `
   <div class="stamp">
     <img src="${stampUrl}" />
-  </div>
-  ` : ""}
+  </div>` : ""}
 
-  <!-- SIGNATURE + EDU -->
   <div class="signature">
 
     ${eduUrl ? `
     <div class="edu-logo">
       <img src="${eduUrl}" />
-    </div>
-    ` : ""}
+    </div>` : ""}
 
     <div class="line"></div>
     <div style="font-size:12px;color:#6b7280;">Authorized Signature</div>
 
   </div>
 
-</div>
+  ${qrDataUrl ? `
+  <div style="position:absolute;bottom:25mm;right:25mm;z-index:3;">
+    <img src="${qrDataUrl}" style="width:110px;height:110px;" />
+  </div>` : ""}
 
+</div>
 </body>
 </html>
 `;
 
-/* ---------------- GENERATE CERTIFICATE ---------------- */
+/* ---------------- GENERATE ---------------- */
 async function generateCertificate(data) {
-
   const tempDir = path.join(process.cwd(), "temp");
-  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+  fs.mkdirSync(tempDir, { recursive: true });
 
-  const timestamp = Date.now();
-  const filePath = path.join(tempDir, `${timestamp}.pdf`);
-  const htmlPath = path.join(tempDir, `${timestamp}.html`);
+  const id = data.certificateId || Date.now().toString();
 
-  /* -------- FILE PATHS -------- */
-  const bgPath = path.join(process.cwd(), "public/assets/Edu-Learn-01.png");
-  const stampPath = path.join(process.cwd(), "public/assets/upload.png");
-  const eduPath = path.join(process.cwd(), "public/assets/EDU.png");
+  const filePath = path.join(tempDir, `${id}.pdf`);
+  const htmlPath = path.join(tempDir, `${id}.html`);
 
-  const bgUrl = `file:///${bgPath.replace(/\\/g, '/')}`;
-  const stampUrl = fs.existsSync(stampPath)
-    ? `file:///${stampPath.replace(/\\/g, '/')}`
+  const assetPath = (...p) =>
+    path.resolve(__dirname, '..', '..', '..', 'public', 'assets', ...p);
+
+  const toFileUrl = (p) =>
+    `file:///${p.replace(/\\/g, '/')}`;
+
+  const bgUrl = toFileUrl(assetPath("Edu-Learn-01.png"));
+  const stampUrl = fs.existsSync(assetPath("upload.png"))
+    ? toFileUrl(assetPath("upload.png"))
     : "";
 
-  const eduUrl = fs.existsSync(eduPath)
-    ? `file:///${eduPath.replace(/\\/g, '/')}`
+  const eduUrl = fs.existsSync(assetPath("EDU.png"))
+    ? toFileUrl(assetPath("EDU.png"))
     : "";
 
-  /* -------- HTML -------- */
-  const html = certificateTemplate(bgUrl, stampUrl, eduUrl, {
+  /* ---------------- QR (SAFE) ---------------- */
+  let qrDataUrl = "";
+  const enableQr = process.env.ENABLE_QR !== "false";
+
+  const baseUrl = process.env.BASE_URL || "";
+  const viewUrl = baseUrl && id
+    ? `${baseUrl.replace(/\/+$/, '')}/view/${id}`
+    : "";
+
+  if (enableQr && viewUrl) {
+    try {
+      qrDataUrl = await QRCode.toDataURL(viewUrl, {
+        width: 200,
+        margin: 1
+      });
+    } catch (e) {
+      qrDataUrl = "";
+    }
+  }
+
+  const html = certificateTemplate(bgUrl, stampUrl, eduUrl, qrDataUrl, {
     ...data,
+    certificateId: id,
     completionDate: new Date().toLocaleDateString()
   });
 
   fs.writeFileSync(htmlPath, html);
 
-  /* -------- PUPPETEER -------- */
   const browser = await puppeteer.launch({
     headless: "new",
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox"
-    ]
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
   });
 
   const page = await browser.newPage();
 
   await page.goto(`file:///${htmlPath.replace(/\\/g, '/')}`, {
-    waitUntil: "networkidle0"
+    waitUntil: "load"
   });
 
   await page.pdf({
@@ -274,7 +249,6 @@ async function generateCertificate(data) {
 
   fs.unlinkSync(htmlPath);
 
-  /* -------- CLOUDINARY -------- */
   const result = await cloudinary.uploader.upload(filePath, {
     resource_type: "raw",
     folder: "certificates"
@@ -282,8 +256,7 @@ async function generateCertificate(data) {
 
   fs.unlinkSync(filePath);
 
-  /* -------- DB SAVE -------- */
-  const certificate = await Certificate.create({
+  return await Certificate.create({
     userId: data.userId,
     userName: data.userName,
     courseId: data.courseId,
@@ -292,10 +265,6 @@ async function generateCertificate(data) {
     certificateUrl: result.secure_url,
     cloudinaryId: result.public_id
   });
-
-  return certificate;
 }
 
-module.exports = {
-  generateCertificate
-};
+module.exports = { generateCertificate };
