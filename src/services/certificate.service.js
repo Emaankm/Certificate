@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const cloudinary = require('cloudinary').v2;
 const Certificate = require('../models/certificate.model');
-const QRCode = require('qrcode');
 
 /* ---------------- CLOUDINARY CONFIG ---------------- */
 cloudinary.config({
@@ -13,7 +12,7 @@ cloudinary.config({
 });
 
 /* ---------------- TEMPLATE ---------------- */
-const certificateTemplate = (bgUrl, stampUrl, eduUrl, qrDataUrl, data) => `
+const certificateTemplate = (bgUrl, stampUrl, eduUrl, data) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -102,7 +101,9 @@ body {
   z-index: 3;
 }
 
-.stamp img { width: 130px; }
+.stamp img {
+  width: 130px;
+}
 
 .signature {
   position: absolute;
@@ -111,8 +112,14 @@ body {
   text-align: center;
 }
 
-.edu-logo { margin-bottom: 6px; }
-.edu-logo img { width: 150px; height: auto; }
+.edu-logo {
+  margin-bottom: 6px;
+}
+
+.edu-logo img {
+  width: 150px;
+  height: auto;
+}
 
 .line {
   width: 160px;
@@ -132,12 +139,15 @@ body {
   <div class="content">
 
     <div class="brand">EDULEARN ACADEMY</div>
+
     <div class="title">Certificate of Completion</div>
+
     <div class="subtitle">This is to certify that</div>
 
     <div class="name">${data.userName}</div>
 
     <div class="subtitle">has successfully completed the course</div>
+
     <div class="course">${data.courseTitle}</div>
 
     <div class="details">
@@ -164,18 +174,14 @@ body {
 
   </div>
 
-  ${qrDataUrl ? `
-  <div style="position:absolute;bottom:25mm;right:25mm;z-index:3;">
-    <img src="${qrDataUrl}" style="width:110px;height:110px;" />
-  </div>` : ""}
-
 </div>
 </body>
 </html>
 `;
 
-/* ---------------- GENERATE ---------------- */
+/* ---------------- GENERATE CERTIFICATE ---------------- */
 async function generateCertificate(data) {
+
   const tempDir = path.join(process.cwd(), "temp");
   fs.mkdirSync(tempDir, { recursive: true });
 
@@ -184,42 +190,13 @@ async function generateCertificate(data) {
   const filePath = path.join(tempDir, `${id}.pdf`);
   const htmlPath = path.join(tempDir, `${id}.html`);
 
-  const assetPath = (...p) =>
-    path.resolve(__dirname, '..', '..', '..', 'public', 'assets', ...p);
+  /* ---------------- CLOUDINARY ASSETS ---------------- */
+  const bgUrl = process.env.BG_URL;
+  const stampUrl = process.env.STAMP_URL;
+  const eduUrl = process.env.EDU_URL;
 
-  const toFileUrl = (p) =>
-    `file:///${p.replace(/\\/g, '/')}`;
-
-  const bgUrl = toFileUrl(assetPath("Edu-Learn-01.png"));
-  const stampUrl = fs.existsSync(assetPath("upload.png"))
-    ? toFileUrl(assetPath("upload.png"))
-    : "";
-
-  const eduUrl = fs.existsSync(assetPath("EDU.png"))
-    ? toFileUrl(assetPath("EDU.png"))
-    : "";
-
-  /* ---------------- QR (SAFE) ---------------- */
-  let qrDataUrl = "";
-  const enableQr = process.env.ENABLE_QR !== "false";
-
-  const baseUrl = process.env.BASE_URL || "";
-  const viewUrl = baseUrl && id
-    ? `${baseUrl.replace(/\/+$/, '')}/view/${id}`
-    : "";
-
-  if (enableQr && viewUrl) {
-    try {
-      qrDataUrl = await QRCode.toDataURL(viewUrl, {
-        width: 200,
-        margin: 1
-      });
-    } catch (e) {
-      qrDataUrl = "";
-    }
-  }
-
-  const html = certificateTemplate(bgUrl, stampUrl, eduUrl, qrDataUrl, {
+  /* ---------------- HTML ---------------- */
+  const html = certificateTemplate(bgUrl, stampUrl, eduUrl, {
     ...data,
     certificateId: id,
     completionDate: new Date().toLocaleDateString()
@@ -227,6 +204,7 @@ async function generateCertificate(data) {
 
   fs.writeFileSync(htmlPath, html);
 
+  /* ---------------- PUPPETEER ---------------- */
   const browser = await puppeteer.launch({
     headless: "new",
     args: ["--no-sandbox", "--disable-setuid-sandbox"]
@@ -235,7 +213,7 @@ async function generateCertificate(data) {
   const page = await browser.newPage();
 
   await page.goto(`file:///${htmlPath.replace(/\\/g, '/')}`, {
-    waitUntil: "load"
+    waitUntil: "networkidle0"
   });
 
   await page.pdf({
@@ -249,6 +227,7 @@ async function generateCertificate(data) {
 
   fs.unlinkSync(htmlPath);
 
+  /* ---------------- CLOUDINARY UPLOAD ---------------- */
   const result = await cloudinary.uploader.upload(filePath, {
     resource_type: "raw",
     folder: "certificates"
@@ -256,6 +235,7 @@ async function generateCertificate(data) {
 
   fs.unlinkSync(filePath);
 
+  /* ---------------- SAVE DB ---------------- */
   return await Certificate.create({
     userId: data.userId,
     userName: data.userName,
