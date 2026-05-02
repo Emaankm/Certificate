@@ -202,6 +202,13 @@ body {
 /* ---------------- GENERATE CERTIFICATE ---------------- */
 async function generateCertificate(data) {
 
+  const normalizedData = {
+    userId: data.userId || data.studentId,
+    userName: data.userName || data.studentName,
+    courseId: data.courseId,
+    courseTitle: data.courseTitle
+  };
+
   const tempDir = path.join(process.cwd(), "temp");
   fs.mkdirSync(tempDir, { recursive: true });
 
@@ -218,6 +225,7 @@ async function generateCertificate(data) {
   /* ---------------- HTML ---------------- */
   const html = certificateTemplate(bgUrl, stampUrl, eduUrl, {
     ...data,
+    ...normalizedData,
     certificateId: id,
     completionDate: new Date().toLocaleDateString()
   });
@@ -280,10 +288,10 @@ async function generateCertificate(data) {
 
   /* ---------------- DB SAVE ---------------- */
   return await Certificate.create({
-    userId: data.userId,
-    userName: data.userName,
-    courseId: data.courseId,
-    courseTitle: data.courseTitle,
+    userId: normalizedData.userId,
+    userName: normalizedData.userName,
+    courseId: normalizedData.courseId,
+    courseTitle: normalizedData.courseTitle,
     language: data.language || "en",
     certificateUrl: result.secure_url,
     cloudinaryId: result.public_id
