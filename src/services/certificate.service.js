@@ -17,7 +17,6 @@ const certificateTemplate = (bgUrl, stampUrl, eduUrl, data) => `
 <html>
 <head>
 
-<!-- 🔥 PRELOAD FIX (VERY IMPORTANT FOR RENDER) -->
 <link rel="preload" as="image" href="${bgUrl}">
 <link rel="preload" as="image" href="${stampUrl}">
 <link rel="preload" as="image" href="${eduUrl}">
@@ -120,7 +119,6 @@ body {
   position: absolute;
   bottom: 25mm;
   left: 25mm;
-  z-index: 3;
 }
 
 .stamp img {
@@ -212,7 +210,7 @@ async function generateCertificate(data) {
   const filePath = path.join(tempDir, `${id}.pdf`);
   const htmlPath = path.join(tempDir, `${id}.html`);
 
-  /* 🔥 USE CLOUDINARY ENV URLS */
+  /* ---------------- ENV IMAGES ---------------- */
   const bgUrl = process.env.BG_URL;
   const stampUrl = process.env.STAMP_URL;
   const eduUrl = process.env.EDU_URL;
@@ -241,17 +239,24 @@ async function generateCertificate(data) {
     waitUntil: "load"
   });
 
-  // Wait for all images to load (IMPORTANT FIX)
+  /* 🔥 FINAL IMAGE LOAD FIX */
   await page.evaluate(async () => {
+    const delay = (ms) => new Promise(res => setTimeout(res, ms));
+
     const images = Array.from(document.images);
+
     await Promise.all(
       images.map(img => {
-        if (img.complete) return;
+        if (img.complete && img.naturalHeight !== 0) return;
+
         return new Promise(resolve => {
-          img.onload = img.onerror = resolve;
+          img.onload = resolve;
+          img.onerror = resolve;
         });
       })
     );
+
+    await delay(1000);
   });
 
   await page.pdf({
@@ -265,7 +270,7 @@ async function generateCertificate(data) {
 
   fs.unlinkSync(htmlPath);
 
-  /* ---------------- CLOUDINARY UPLOAD ---------------- */
+  /* ---------------- UPLOAD ---------------- */
   const result = await cloudinary.uploader.upload(filePath, {
     resource_type: "raw",
     folder: "certificates"
@@ -273,7 +278,7 @@ async function generateCertificate(data) {
 
   fs.unlinkSync(filePath);
 
-  /* ---------------- SAVE DB ---------------- */
+  /* ---------------- DB SAVE ---------------- */
   return await Certificate.create({
     userId: data.userId,
     userName: data.userName,
