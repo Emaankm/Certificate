@@ -202,8 +202,9 @@ body {
 /* ---------------- GENERATE CERTIFICATE ---------------- */
 async function generateCertificate(data) {
 
-  console.log("📥 Incoming Certificate Request:", data);
+  console.log("📥 Incoming Data:", data);
 
+  /* ---------------- NORMALIZATION ---------------- */
   const normalizedData = {
     userId: data.userId || data.studentId,
     userName: data.userName || data.studentName,
@@ -216,15 +217,16 @@ async function generateCertificate(data) {
   const tempDir = path.join(process.cwd(), "temp");
   fs.mkdirSync(tempDir, { recursive: true });
 
-  const id = data.certificateId || Date.now().toString();
+  const id = Date.now().toString();
 
   const filePath = path.join(tempDir, `${id}.pdf`);
-  const htmlPath = path.join(tempDir, `${id}.html`);
 
   /* ---------------- ENV IMAGES ---------------- */
   const bgUrl = process.env.BG_URL;
   const stampUrl = process.env.STAMP_URL;
   const eduUrl = process.env.EDU_URL;
+
+  console.log("🖼️ Using Assets:", { bgUrl, stampUrl, eduUrl });
 
   /* ---------------- HTML ---------------- */
   const html = certificateTemplate(bgUrl, stampUrl, eduUrl, {
@@ -234,24 +236,22 @@ async function generateCertificate(data) {
     completionDate: new Date().toLocaleDateString()
   });
 
-  fs.writeFileSync(htmlPath, html);
-
   /* ---------------- PUPPETEER ---------------- */
   const browser = await puppeteer.launch({
     headless: "new",
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox"
-    ]
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
   });
 
   const page = await browser.newPage();
 
-  await page.goto(`file:///${htmlPath.replace(/\\/g, '/')}`, {
-    waitUntil: "load"
+  console.log("🌐 Rendering HTML with Puppeteer...");
+
+  /* 🔥 IMPORTANT FIX (NO file:// ANYMORE) */
+  await page.setContent(html, {
+    waitUntil: "networkidle0"
   });
 
-  /* 🔥 FINAL IMAGE LOAD FIX */
+  /* 🔥 WAIT FOR EVERYTHING (CSS + IMAGES + FONTS) */
   await page.evaluate(async () => {
     const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
@@ -260,7 +260,6 @@ async function generateCertificate(data) {
     await Promise.all(
       images.map(img => {
         if (img.complete && img.naturalHeight !== 0) return;
-
         return new Promise(resolve => {
           img.onload = resolve;
           img.onerror = resolve;
@@ -268,8 +267,14 @@ async function generateCertificate(data) {
       })
     );
 
-    await delay(1000);
+    if (document.fonts) {
+      await document.fonts.ready;
+    }
+
+    await delay(1200);
   });
+
+  console.log("📄 Generating PDF...");
 
   await page.pdf({
     path: filePath,
@@ -280,37 +285,29 @@ async function generateCertificate(data) {
 
   await browser.close();
 
-  fs.unlinkSync(htmlPath);
+  console.log("📦 PDF generated:", filePath);
 
-  /* ---------------- UPLOAD ---------------- */
+  /* ---------------- CLOUDINARY UPLOAD ---------------- */
   const result = await cloudinary.uploader.upload(filePath, {
     resource_type: "raw",
     folder: "certificates"
   });
 
-  console.log("☁️ Cloudinary Upload Result:", result);
+  console.log("☁️ Uploaded to Cloudinary:", result.secure_url);
 
   fs.unlinkSync(filePath);
 
   /* ---------------- DB SAVE ---------------- */
-  console.log("💾 Preparing DB Save Payload:", {
-    userId: normalizedData.userId,
-    userName: normalizedData.userName,
-    courseId: normalizedData.courseId,
-    courseTitle: normalizedData.courseTitle
-  });
-
   const certificate = await Certificate.create({
     userId: normalizedData.userId,
     userName: normalizedData.userName,
     courseId: normalizedData.courseId,
     courseTitle: normalizedData.courseTitle,
-    language: data.language || "en",
     certificateUrl: result.secure_url,
     cloudinaryId: result.public_id
   });
 
-  console.log("✅ Certificate Generated Successfully:", certificate._id);
+  console.log("✅ Certificate saved:", certificate._id);
 
   return certificate;
 }
