@@ -1,21 +1,41 @@
 require('dotenv').config();
+const { validateEnv } = require('./src/config/validateEnv');
+const connectDatabase = require('./src/config/database');
+
+validateEnv();
+
 const app = require('./app');
 
 const PORT = process.env.PORT || 3000;
 
-const server = app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+/* =========================
+   🗄️ CONNECT DB FIRST
+========================= */
+connectDatabase()
+  .then(() => {
+    console.log("✅ Database connected. Starting server...");
 
-// Timeouts/keep-alives to reduce hanging connections behind proxies
-server.keepAliveTimeout = 65_000;
-server.headersTimeout = 70_000;
-server.requestTimeout = 120_000;
+    const server = app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
 
-// Prevent hard crashes on unhandled async errors
+    // Timeouts (good 👍)
+    server.keepAliveTimeout = 65000;
+    server.headersTimeout = 70000;
+    server.requestTimeout = 120000;
+  })
+  .catch((err) => {
+    console.error("❌ Failed to connect DB:", err.message);
+    process.exit(1);
+  });
+
+/* =========================
+   💀 SAFETY HANDLERS
+========================= */
 process.on('unhandledRejection', (reason) => {
-  console.error('UnhandledRejection:', reason);
+  console.error('💥 UnhandledRejection:', reason);
 });
+
 process.on('uncaughtException', (err) => {
-  console.error('UncaughtException:', err);
+  console.error('💥 UncaughtException:', err);
 });

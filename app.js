@@ -1,6 +1,4 @@
-require('dotenv').config();
 const express = require('express');
-const connectDatabase = require('./src/config/database');
 const certificateRoutes = require('./src/routes/certificate.routes');
 
 const app = express();
@@ -8,28 +6,13 @@ const app = express();
 app.disable('x-powered-by');
 
 /* =========================
-   🛡️ BASIC SAFETY MIDDLEWARE
+   🛡️ MIDDLEWARE
 ========================= */
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 /* =========================
-   🧠 OPTIONAL DEBUG (safe for dev)
-   Turn OFF in production if needed
-========================= */
-if (process.env.LOG_REQUEST_BODY === 'true') {
-  app.use((req, res, next) => {
-    console.log('📥 REQUEST:', {
-      method: req.method,
-      url: req.url,
-      body: req.body
-    });
-    next();
-  });
-}
-
-/* =========================
-   ❤️ HEALTH CHECK (NO DB)
+   ❤️ HEALTH CHECK
 ========================= */
 app.get('/health', (req, res) => {
   return res.status(200).json({
@@ -39,19 +22,12 @@ app.get('/health', (req, res) => {
 });
 
 /* =========================
-   🗄️ DATABASE CONNECTION
-========================= */
-connectDatabase().catch((err) => {
-  console.error('❌ DB Connection Failed:', err);
-});
-
-/* =========================
    🚀 ROUTES
 ========================= */
 app.use('/api/certificates', certificateRoutes);
 
 /* =========================
-   🏠 ROOT ROUTE
+   🏠 ROOT
 ========================= */
 app.get('/', (req, res) => {
   return res.status(200).json({
@@ -61,7 +37,7 @@ app.get('/', (req, res) => {
 });
 
 /* =========================
-   ❌ 404 HANDLER (NO HTML EVER)
+   ❌ 404
 ========================= */
 app.use((req, res) => {
   return res.status(404).json({
@@ -74,7 +50,7 @@ app.use((req, res) => {
 });
 
 /* =========================
-   🚨 GLOBAL ERROR HANDLER
+   🚨 ERROR HANDLER
 ========================= */
 app.use((err, req, res, next) => {
   console.error('❌ SERVER ERROR:', err);
@@ -86,17 +62,6 @@ app.use((err, req, res, next) => {
       message: 'Something went wrong'
     }
   });
-});
-
-/* =========================
-   💀 SAFETY NET (CRASH PREVENTION)
-========================= */
-process.on('uncaughtException', (err) => {
-  console.error('💥 UNCAUGHT EXCEPTION:', err);
-});
-
-process.on('unhandledRejection', (err) => {
-  console.error('💥 UNHANDLED REJECTION:', err);
 });
 
 module.exports = app;
